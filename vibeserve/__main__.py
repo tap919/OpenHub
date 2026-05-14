@@ -666,29 +666,34 @@ async def run_tsc_tool(ctx, path: str = ".") -> Dict[str, Any]:
     await ctx.info(f"[exec] Running TypeScript in {path}...")
     work_dir = Path(path).resolve()
 
-    tsc_path = work_dir / "node_modules" / ".bin" / "tsc"
-    if not tsc_path.exists():
-        result = subprocess.run(
-            ["npx", "tsc", "--noEmit"],
-            cwd=work_dir,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-    else:
-        result = subprocess.run(
-            [str(tsc_path), "--noEmit"],
-            cwd=work_dir,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
+    tsc_bin = work_dir / "node_modules" / ".bin" / "tsc"
+    try:
+        if not tsc_bin.exists():
+            result = subprocess.run(
+                ["npx", "tsc", "--noEmit"],
+                cwd=work_dir,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+        else:
+            result = subprocess.run(
+                [str(tsc_bin), "--noEmit"],
+                cwd=work_dir,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
 
-    return {
-        "status": "success" if result.returncode == 0 else "error",
-        "returncode": result.returncode,
-        "output": result.stdout + result.stderr,
-    }
+        return {
+            "status": "success" if result.returncode == 0 else "error",
+            "returncode": result.returncode,
+            "output": result.stdout + result.stderr,
+        }
+    except subprocess.TimeoutExpired:
+        return {"status": "error", "message": "TypeScript check timed out"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 @mcp_server.tool(name="run_build", description="Run the project's build command")
@@ -720,6 +725,10 @@ async def run_build_tool(ctx, path: str = ".") -> Dict[str, Any]:
                             "stdout": result.stdout[:2000],
                             "stderr": result.stderr[:2000],
                         }
+                    except subprocess.TimeoutExpired:
+                        return {"status": "error", "message": "Build timed out"}
+                    except Exception as e:
+                        return {"status": "error", "message": str(e)}
         return {"status": "error", "message": "No build script found in package.json"}
 
     return {"status": "error", "message": "No package.json found"}

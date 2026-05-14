@@ -307,12 +307,9 @@ async function startServer() {
   });
 
   app.get('/api/repos/:owner/:repoName/contents', auth.middleware(), (req, res) => {
-    const { owner, repoName } = req.params;
-    const repoPath = path.join(REPOS_ROOT, owner, repoName);
-
-    if (!fs.existsSync(repoPath)) {
-      return res.status(404).json({ error: 'Repository not found' });
-    }
+    const ownership = verifyRepoOwnership(req);
+    if (!ownership) return res.status(404).json({ error: 'Repository not found' });
+    const { repoPath } = ownership;
 
     const subPath = req.query.path as string || '';
     const fullPath = path.join(repoPath, subPath);
@@ -343,9 +340,10 @@ async function startServer() {
   });
 
   app.put('/api/repos/:owner/:repoName/contents', auth.middleware(), (req, res) => {
-    const { owner, repoName } = req.params;
+    const ownership = verifyRepoOwnership(req);
+    if (!ownership) return res.status(404).json({ error: 'Repository not found' });
+    const { repoPath } = ownership;
     const { path: filePath, content, message } = req.body;
-    const repoPath = path.join(REPOS_ROOT, owner, repoName);
     const fullPath = path.join(repoPath, filePath);
 
     if (!fullPath.startsWith(repoPath)) {
@@ -359,11 +357,21 @@ async function startServer() {
 
   // ===================== GIT ROUTES (isomorphic-git) =====================
 
+  function verifyRepoOwnership(req: express.Request): { repoPath: string } | null {
+    const { owner, repoName } = req.params;
+    const repoPath = path.join(REPOS_ROOT, owner, repoName);
+    if (!fs.existsSync(repoPath)) return null;
+    const db = getDb();
+    const repo = db.prepare('SELECT id FROM repositories WHERE full_path = ? AND owner_id = ?').get(repoPath, getUser(req).sub);
+    if (!repo) return null;
+    return { repoPath };
+  }
+
   app.get('/api/repos/:owner/:repoName/commits', auth.middleware(), async (req, res) => {
     try {
-      const { owner, repoName } = req.params;
-      const repoPath = path.join(REPOS_ROOT, owner, repoName);
-      if (!fs.existsSync(repoPath)) return res.status(404).json({ error: 'Repository not found' });
+      const ownership = verifyRepoOwnership(req);
+      if (!ownership) return res.status(404).json({ error: 'Repository not found' });
+      const { repoPath } = ownership;
 
       const logs = await git.log({ fs, dir: repoPath, depth: 50 });
       const commits = logs.map((c: any) => ({
@@ -382,9 +390,9 @@ async function startServer() {
 
   app.get('/api/repos/:owner/:repoName/branches', auth.middleware(), async (req, res) => {
     try {
-      const { owner, repoName } = req.params;
-      const repoPath = path.join(REPOS_ROOT, owner, repoName);
-      if (!fs.existsSync(repoPath)) return res.status(404).json({ error: 'Repository not found' });
+      const ownership = verifyRepoOwnership(req);
+      if (!ownership) return res.status(404).json({ error: 'Repository not found' });
+      const { repoPath } = ownership;
 
       const branches = await git.listBranches({ fs, dir: repoPath });
       const current = await git.currentBranch({ fs, dir: repoPath, fullname: false });
@@ -396,9 +404,10 @@ async function startServer() {
 
   app.get('/api/repos/:owner/:repoName/commits/:sha', auth.middleware(), async (req, res) => {
     try {
-      const { owner, repoName, sha } = req.params;
-      const repoPath = path.join(REPOS_ROOT, owner, repoName);
-      if (!fs.existsSync(repoPath)) return res.status(404).json({ error: 'Repository not found' });
+      const ownership = verifyRepoOwnership(req);
+      if (!ownership) return res.status(404).json({ error: 'Repository not found' });
+      const { repoPath } = ownership;
+      const { sha } = req.params;
 
       const commit = await git.readCommit({ fs, dir: repoPath, oid: sha });
       res.json({
@@ -417,10 +426,10 @@ async function startServer() {
 
   app.get('/api/repos/:owner/:repoName/diff', auth.middleware(), async (req, res) => {
     try {
-      const { owner, repoName } = req.params;
+      const ownership = verifyRepoOwnership(req);
+      if (!ownership) return res.status(404).json({ error: 'Repository not found' });
+      const { repoPath } = ownership;
       const { sha } = req.query;
-      const repoPath = path.join(REPOS_ROOT, owner, repoName);
-      if (!fs.existsSync(repoPath)) return res.status(404).json({ error: 'Repository not found' });
 
       const commit = await git.readCommit({ fs, dir: repoPath, oid: sha as string });
       const parentSha = commit.commit.parent?.[0];
@@ -482,11 +491,11 @@ async function startServer() {
 
   app.post('/api/repos/:owner/:repoName/commits', auth.middleware(), async (req, res) => {
     try {
-      const { owner, repoName } = req.params;
+      const ownership = verifyRepoOwnership(req);
+      if (!ownership) return res.status(404).json({ error: 'Repository not found' });
+      const { repoPath } = ownership;
       const { filePath, content, message } = req.body;
       const user = req.user as unknown as AuthUser;
-      const repoPath = path.join(REPOS_ROOT, owner, repoName);
-      if (!fs.existsSync(repoPath)) return res.status(404).json({ error: 'Repository not found' });
 
       const fullPath = path.join(repoPath, filePath);
       if (!fullPath.startsWith(repoPath)) return res.status(403).json({ error: 'Path traversal denied' });

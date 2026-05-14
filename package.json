@@ -19,7 +19,9 @@
     "db:init": "node -e \"require('./src/auth/db.ts').initializeDatabase()\"",
     "test": "vitest run && playwright test",
     "test:watch": "vitest",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "pretest:e2e": "node -e \"const fs=require('fs');['data/openhub.db','data/openhub.db-shm','data/openhub.db-wal'].forEach(f=>{try{fs.unlinkSync(f)}catch{}});try{fs.rmSync((process.env.USERPROFILE||'C:/Users/User')+'/Documents/openhub/repos/e2eshared',{recursive:true,force:true})}catch{}\"",
+    "test:e2e": "cross-env E2E_FAST_PIPELINE=1 npx playwright test --reporter=line --timeout=120000"
   },
   "dependencies": {
     "@google/genai": "^1.51.0",
