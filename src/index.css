@@ -1,0 +1,135 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&family=Public+Sans:wght@300;400;700;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-gray-50: #0f1115;
+  --color-gray-100: #161b22;
+  --color-gray-200: #21262d;
+  --color-gray-300: #30363d;
+  --color-gray-400: #484f58;
+  --color-gray-500: #8b949e;
+  --color-gray-600: #6e7681;
+  --color-gray-700: #b1bac4;
+  --color-gray-800: #c9d1d9;
+  --color-gray-900: #f0f6fc;
+  --color-bg-base: #010409;
+
+  --color-blue-500: #1f6feb;
+  --color-green-500: #238636;
+  --color-orange-500: #d76027; /* Industrial orange */
+
+  --font-sans: 'Public Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Bebas Neue', display;
+  --font-mono: 'Space Mono', monospace;
+}
+
+.grid-cols-24 {
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+}
+
+body {
+  background-color: #0d1117;
+  background-image: 
+    linear-gradient(rgba(13, 17, 23, 0.95), rgba(13, 17, 23, 0.95)),
+    url('https://www.transparenttextures.com/patterns/dark-leather.png');
+  color: #c9d1d9;
+  font-family: var(--font-sans);
+  min-height: 100vh;
+}
+
+/* Gritty Texture Overlay */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background: url('https://www.transparenttextures.com/patterns/60-lines.png');
+  opacity: 0.03;
+  z-index: 9999;
+}
+
+h1, h2, h3, .font-industrial {
+  font-family: var(--font-display) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+h1 {
+  font-size: 72px !important;
+  line-height: 0.8 !important;
+  color: #f0f6fc !important;
+  text-shadow: 2px 2px 0px rgba(0,0,0,0.5);
+}
+
+.industrial-card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-left: 4px solid #d76027; /* Industrial marking */
+  box-shadow: 4px 4px 0px rgba(0,0,0,0.2);
+}
+
+.nav-link {
+  font-family: var(--font-display);
+  font-size: 18px;
+  letter-spacing: 1px;
+}
+
+.openhub-tag {
+  position: fixed;
+  bottom: 20px;
+  right: 40px;
+  font-family: var(--font-display);
+  font-size: 150px;
+  opacity: 0.02;
+  pointer-events: none;
+  z-index: 0;
+  color: #fff;
+  line-height: 1;
+}
+
+/* Industrial Gauges and Indicators */
+.gauge-glow-orange {
+  box-shadow: 0 0 15px rgba(215, 96, 39, 0.4), inset 0 0 5px rgba(215, 96, 39, 0.2);
+}
+
+.gauge-glow-blue {
+  box-shadow: 0 0 15px rgba(31, 111, 235, 0.4), inset 0 0 5px rgba(31, 111, 235, 0.2);
+}
+
+.gauge-glow-green {
+  box-shadow: 0 0 15px rgba(35, 134, 54, 0.4), inset 0 0 5px rgba(35, 134, 54, 0.2);
+}
+
+.animate-warning-blink {
+  animation: warning-blink 2s step-end infinite;
+}
+
+@keyframes warning-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.scanline {
+  width: 100%;
+  height: 100px;
+  z-index: 10;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgba(215, 96, 39, 0.05) 50%, rgba(0, 0, 0, 0) 100%);
+  opacity: 0.1;
+  position: absolute;
+  bottom: 100%;
+  animation: scanline 8s linear infinite;
+}
+
+@keyframes scanline {
+  0% { bottom: 100%; }
+  80% { bottom: -100px; }
+  100% { bottom: -100px; }
+}
+
+/* Force border colors */
+* {
+  border-color: var(--color-gray-300);
+}

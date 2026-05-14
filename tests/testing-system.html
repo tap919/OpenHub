@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenHub Testing System</title>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,600,700&display=swap" rel="stylesheet">
+<style>
+/* ========== DESIGN TOKENS ========== */
+:root,[data-theme="light"]{
+  --color-bg:#f7f6f2;--color-surface:#f9f8f5;--color-surface-2:#fbfbf9;
+  --color-surface-offset:#f3f0ec;--color-surface-dynamic:#e6e4df;
+  --color-divider:#dcd9d5;--color-border:#d4d1ca;
+  --color-text:#28251d;--color-text-muted:#7a7974;--color-text-faint:#bab9b4;
+  --color-primary:#01696f;--color-primary-hover:#0c4e54;--color-primary-highlight:#cedcd8;
+  --color-success:#437a22;--color-success-highlight:#d4dfcc;
+  --color-warning:#964219;--color-warning-highlight:#ddcfc6;
+  --color-error:#a12c7b;--color-error-highlight:#e0ced7;
+  --color-blue:#006494;--color-blue-highlight:#c6d8e4;
+  --color-purple:#7a39bb;--color-purple-highlight:#dacfde;
+  --color-gold:#d19900;--color-gold-highlight:#e9e0c6;
+  --radius-sm:0.375rem;--radius-md:0.5rem;--radius-lg:0.75rem;--radius-xl:1rem;--radius-full:9999px;
+  --shadow-sm:0 1px 2px oklch(0.2 0.01 80/0.06);--shadow-md:0 4px 12px oklch(0.2 0.01 80/0.08);
+  --shadow-lg:0 12px 32px oklch(0.2 0.01 80/0.12);
+  --transition:180ms cubic-bezier(0.16,1,0.3,1);
+  --text-xs:clamp(0.75rem,0.7rem + 0.25vw,0.875rem);
+  --text-sm:clamp(0.875rem,0.8rem + 0.35vw,1rem);
+  --text-base:clamp(1rem,0.95rem + 0.25vw,1.125rem);
+  --text-lg:clamp(1.125rem,1rem + 0.75vw,1.5rem);
+  --text-xl:clamp(1.5rem,1.2rem + 1.25vw,2.25rem);
+}
+[data-theme="dark"]{
+  --color-bg:#171614;--color-surface:#1c1b19;--color-surface-2:#201f1d;
+  --color-surface-offset:#1d1c1a;--color-surface-dynamic:#2d2c2a;
+  --color-divider:#262523;--color-border:#393836;
+  --color-text:#cdccca;--color-text-muted:#797876;--color-text-faint:#5a5957;
+  --color-primary:#4f98a3;--color-primary-hover:#227f8b;--color-primary-highlight:#313b3b;
+  --color-success:#6daa45;--color-success-highlight:#3a4435;
+  --color-warning:#bb653b;--color-warning-highlight:#564942;
+  --color-error:#d163a7;--color-error-highlight:#4c3d46;
+  --color-blue:#5591c7;--color-blue-highlight:#3a4550;
+  --color-purple:#a86fdf;--color-purple-highlight:#4e4652;
+  --color-gold:#e8af34;--color-gold-highlight:#4d4332;
+  --shadow-sm:0 1px 2px oklch(0 0 0/0.2);--shadow-md:0 4px 12px oklch(0 0 0/0.3);
+  --shadow-lg:0 12px 32px oklch(0 0 0/0.4);
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+body{min-height:100dvh;font-family:'Satoshi',sans-serif;font-size:var(--text-sm);color:var(--color-text);background:var(--color-bg);line-height:1.5}
+a,button,[role="button"]{transition:color var(--transition),background var(--transition),border-color var(--transition),box-shadow var(--transition)}
+button{cursor:pointer;background:none;border:none}
+:focus-visible{outline:2px solid var(--color-primary);outline-offset:3px;border-radius:var(--radius-sm)}
+
+.shell{display:grid;grid-template-columns:260px 1fr;min-height:100dvh}
+.sidebar{background:var(--color-surface);border-right:1px solid var(--color-border);display:flex;flex-direction:column;position:sticky;top:0;height:100dvh;overflow-y:auto}
+.main{overflow:hidden}
+.topbar{background:var(--color-surface);border-bottom:1px solid var(--color-border);padding:0 1.5rem;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+.content{padding:1.5rem 2rem;max-width:1200px}
+
+.sidebar-logo{padding:1.25rem 1.25rem 0.75rem;display:flex;align-items:center;gap:0.625rem;border-bottom:1px solid var(--color-divider);margin-bottom:0.5rem}
+.logo-text{font-size:var(--text-sm);font-weight:700;color:var(--color-text)}
+.logo-sub{font-size:var(--text-xs);color:var(--color-text-muted);font-weight:400}
+.sidebar-label{font-size:0.65rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--color-text-faint);padding:0.5rem 0.5rem 0.25rem}
+.sidebar-link{display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem;border-radius:var(--radius-md);color:var(--color-text-muted);font-size:var(--text-xs);font-weight:500;text-decoration:none;cursor:pointer;border:none;width:100%;text-align:left;background:none}
+.sidebar-link:hover{background:var(--color-surface-dynamic);color:var(--color-text)}
+.sidebar-link.active{background:var(--color-primary-highlight);color:var(--color-primary);font-weight:600}
+.layer-dot{width:7px;height:7px;border-radius:var(--radius-full);flex-shrink:0}
+
+.kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem;margin-bottom:1.5rem}
+.kpi-card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:0.875rem 1rem;box-shadow:var(--shadow-sm)}
+.kpi-label{font-size:var(--text-xs);color:var(--color-text-muted);font-weight:500;margin-bottom:0.25rem}
+.kpi-value{font-size:var(--text-xl);font-weight:700;line-height:1;font-variant-numeric:tabular-nums;color:var(--color-text)}
+.kpi-sub{font-size:var(--text-xs);color:var(--color-text-faint);margin-top:0.25rem}
+.section-title{font-size:var(--text-lg);font-weight:700;color:var(--color-text);margin-bottom:1rem}
+
+.layers-grid{display:flex;flex-direction:column;gap:0.5rem;margin-bottom:2rem}
+.layer-block{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-sm)}
+.layer-header{display:flex;align-items:center;gap:0.75rem;padding:0.75rem 1rem;cursor:pointer;user-select:none}
+.layer-header:hover{background:var(--color-surface-dynamic)}
+.layer-num{font-size:0.65rem;font-weight:800;width:22px;height:22px;border-radius:var(--radius-full);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.layer-name{font-size:var(--text-sm);font-weight:700}
+.layer-desc{font-size:var(--text-xs);color:var(--color-text-muted)}
+.layer-meta{display:flex;gap:0.5rem;align-items:center;margin-left:auto}
+.layer-count{font-size:var(--text-xs);color:var(--color-text-muted)}
+.layer-chevron{color:var(--color-text-faint);transition:transform var(--transition)}
+.layer-block.open .layer-chevron{transform:rotate(180deg)}
+.layer-tools{display:none;padding:0 1rem 0.875rem}
+.layer-block.open .layer-tools{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0.5rem}
+
+.tool-chip{background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:0.5rem 0.75rem;display:flex;align-items:flex-start;gap:0.5rem}
+.tool-chip-icon{width:24px;height:24px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.65rem;font-weight:800}
+.tool-chip-name{font-size:var(--text-xs);font-weight:700;color:var(--color-text)}
+.tool-chip-desc{font-size:0.7rem;color:var(--color-text-muted);margin-top:1px;line-height:1.4}
+.tool-chip-stars{font-size:0.65rem;color:var(--color-gold);margin-top:2px;font-weight:600}
+.chip-have{border-left:2px solid var(--color-success)}
+.chip-new{border-left:2px solid var(--color-primary)}
+
+.matrix-wrap{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);overflow-x:auto;box-shadow:var(--shadow-sm);margin-bottom:2rem}
+.matrix-table{width:100%;border-collapse:collapse;font-size:var(--text-xs)}
+.matrix-table th{background:var(--color-surface-offset);color:var(--color-text-muted);font-weight:700;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.05em;padding:0.5rem 0.625rem;text-align:center;border-bottom:1px solid var(--color-border);white-space:nowrap}
+.matrix-table th:first-child,.matrix-table td:first-child{text-align:left}
+.matrix-table td{padding:0.45rem 0.625rem;border-bottom:1px solid var(--color-divider);text-align:center}
+.matrix-table tr:hover td{background:var(--color-surface-dynamic)}
+.tool-name-cell{font-weight:700;color:var(--color-text);white-space:nowrap}
+.score-sum{font-size:var(--text-sm);font-weight:800;color:var(--color-primary)}
+.heat{border-radius:var(--radius-sm);padding:2px 5px;font-weight:700;font-size:0.7rem}
+.heat-0{color:var(--color-text-faint)}
+.heat-1{background:color-mix(in oklch,var(--color-primary) 15%,transparent);color:var(--color-primary)}
+.heat-2{background:color-mix(in oklch,var(--color-primary) 30%,transparent);color:var(--color-primary)}
+.heat-3{background:color-mix(in oklch,var(--color-primary) 55%,transparent);color:var(--color-primary)}
+.heat-4{background:var(--color-primary);color:#fff}
+
+.priority-table-wrap,.build-steps{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-sm);margin-bottom:2rem}
+.priority-table{width:100%;border-collapse:collapse;font-size:var(--text-xs)}
+.priority-table th{background:var(--color-surface-offset);color:var(--color-text-muted);font-weight:700;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.05em;padding:0.5rem 1rem;text-align:left;border-bottom:1px solid var(--color-border)}
+.priority-table td{padding:0.65rem 1rem;border-bottom:1px solid var(--color-divider)}
+.priority-table tr:hover td{background:var(--color-surface-dynamic)}
+.priority-badge{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:var(--radius-full);font-size:0.65rem;font-weight:800;background:var(--color-primary);color:#fff}
+.effort-badge{display:inline-flex;font-size:0.65rem;font-weight:600;padding:2px 7px;border-radius:var(--radius-full)}
+.effort-low{background:var(--color-success-highlight);color:var(--color-success)}
+.effort-med{background:var(--color-warning-highlight);color:var(--color-warning)}
+.effort-high{background:var(--color-error-highlight);color:var(--color-error)}
+.impact-bar{display:flex;align-items:center;gap:0.5rem}
+.impact-fill{height:6px;border-radius:var(--radius-full);background:var(--color-primary)}
+.impact-num{font-size:0.65rem;font-weight:700;color:var(--color-primary)}
+
+.build-step{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:0.875rem 1rem;display:flex;align-items:flex-start;gap:0.875rem;box-shadow:var(--shadow-sm);margin-bottom:0.625rem}
+.step-num{width:26px;height:26px;border-radius:var(--radius-full);background:var(--color-primary);color:#fff;font-size:0.7rem;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step-title{font-size:var(--text-sm);font-weight:700;color:var(--color-text)}
+.step-detail{font-size:var(--text-xs);color:var(--color-text-muted);margin-top:0.25rem;line-height:1.5}
+.step-tag{font-size:0.65rem;font-weight:600;padding:2px 7px;border-radius:var(--radius-full);background:var(--color-surface-offset);color:var(--color-text-muted);border:1px solid var(--color-border)}
+
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+.code-block{background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:1rem;font-family:monospace;font-size:0.7rem;color:var(--color-text-muted);overflow-x:auto;line-height:1.6;margin-bottom:1rem}
+.status-badge{display:flex;align-items:center;gap:0.375rem;font-size:var(--text-xs);font-weight:600;padding:0.25rem 0.75rem;border-radius:var(--radius-full);background:var(--color-success-highlight);color:var(--color-success)}
+.status-dot{width:6px;height:6px;border-radius:var(--radius-full);background:var(--color-success);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+
+@media(max-width:900px){.shell{grid-template-columns:1fr}.sidebar{display:none}.kpi-strip{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.content{padding:1rem}.kpi-strip{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="shell">
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div><div class="logo-text">OpenHub</div><div class="logo-sub">Testing System</div></div>
+  </div>
+  <div class="sidebar-label">Navigation</div>
+  <button class="sidebar-link active" onclick="showTab('overview', this)">Overview</button>
+  <button class="sidebar-link" onclick="showTab('architecture', this)">Architecture</button>
+  <button class="sidebar-link" onclick="showTab('matrix', this)">Impact Matrix</button>
+  <button class="sidebar-link" onclick="showTab('priority', this)">Priority Plan</button>
+  <button class="sidebar-link" onclick="showTab('build', this)">Build Now</button>
+  <div class="sidebar-label">Layers</div>
+  <button class="sidebar-link" onclick="showTab('architecture',this);setTimeout(()=>scrollLayer(0),50)"><span class="layer-dot" style="background:#94a3b8"></span>Layer 0 · Static Gate</button>
+  <button class="sidebar-link" onclick="showTab('architecture',this);setTimeout(()=>scrollLayer(1),50)"><span class="layer-dot" style="background:var(--color-blue)"></span>Layer 1 · API Contract</button>
+  <button class="sidebar-link" onclick="showTab('architecture',this);setTimeout(()=>scrollLayer(2),50)"><span class="layer-dot" style="background:var(--color-success)"></span>Layer 2 · Integration</button>
+  <button class="sidebar-link" onclick="showTab('architecture',this);setTimeout(()=>scrollLayer(3),50)"><span class="layer-dot" style="background:var(--color-primary)"></span>Layer 3 · E2E Browser</button>
+  <button class="sidebar-link" onclick="showTab('architecture',this);setTimeout(()=>scrollLayer(4),50)"><span class="layer-dot" style="background:var(--color-purple)"></span>Layer 4 · Cross-Service</button>
+  <button class="sidebar-link" onclick="showTab('architecture',this);setTimeout(()=>scrollLayer(5),50)"><span class="layer-dot" style="background:var(--color-warning)"></span>Layer 5 · Monitoring</button>
+</aside>
+<div class="main">
+<div class="topbar"><div class="topbar-title">Comprehensive Testing System</div><div class="topbar-right"><span class="status-badge"><span class="status-dot"></span>6 layers active</span></div></div>
+<div class="content">
+<!-- Overview -->
+<div id="tab-overview" class="tab-content active">
+  <h1 style="font-size:var(--text-xl);font-weight:800;margin-bottom:0.25rem">OpenHub Testing System</h1>
+  <p style="color:var(--color-text-muted);margin-bottom:1.5rem">6-layer defense-in-depth · 12 tools · low-effort-first</p>
+  <div class="kpi-strip">
+    <div class="kpi-card"><div class="kpi-label">Total Tools</div><div class="kpi-value" style="color:var(--color-primary)">12</div><div class="kpi-sub">across 6 layers</div></div>
+    <div class="kpi-card"><div class="kpi-label">Already Have</div><div class="kpi-value" style="color:var(--color-success)">4</div><div class="kpi-sub">vitest, playwright, supertest, tsc</div></div>
+    <div class="kpi-card"><div class="kpi-label">Top Score</div><div class="kpi-value" style="color:var(--color-gold)">125</div><div class="kpi-sub">hurl + karate (tied)</div></div>
+    <div class="kpi-card"><div class="kpi-label">Quick Wins</div><div class="kpi-value" style="color:var(--color-warning)">2</div><div class="kpi-sub">hurl + axe-core</div></div>
+  </div>
+  <div class="section-title">Quick Start</div>
+  <div class="code-block">
+# 1. hurl for API contracts
+mkdir -p tests/contracts
+# 2. axe-core accessibility in Playwright
+npm install --save-dev @axe-core/playwright
+# 3. visual snapshots (built-in Playwright)
+# await expect(page).toHaveScreenshot('page.png');
+# 4. Run 6 spec files
+npx playwright test
+  </div>
+</div>
+
+<!-- Architecture -->
+<div id="tab-architecture" class="tab-content">
+  <h1 style="font-size:var(--text-xl);font-weight:800;margin-bottom:0.25rem">System Architecture</h1>
+  <p style="color:var(--color-text-muted);margin-bottom:1rem">Click layers to expand. Green border = already in project.</p>
+  <div class="layers-grid">
+    <div class="layer-block open" id="layer-0">
+      <div class="layer-header" onclick="toggleLayer('layer-0')"><div class="layer-num" style="background:#94a3b820;color:#94a3b8">0</div><div><div class="layer-name">Static Gate</div><div class="layer-desc">Pre-test · instant feedback</div></div><div class="layer-meta"><span class="layer-count">3 tools</span><svg class="layer-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div></div>
+      <div class="layer-tools">
+        <div class="tool-chip chip-have"><div class="tool-chip-icon" style="background:var(--color-success-highlight);color:var(--color-success)">TS</div><div><div class="tool-chip-name">tsc --noEmit</div><div class="tool-chip-desc">TypeScript type checking.</div><div class="tool-chip-stars">Already have</div></div></div>
+        <div class="tool-chip chip-have"><div class="tool-chip-icon" style="background:var(--color-success-highlight);color:var(--color-success)">AU</div><div><div class="tool-chip-name">npm audit</div><div class="tool-chip-desc">Dependency vulnerability scanning.</div><div class="tool-chip-stars">Already have</div></div></div>
+        <div class="tool-chip chip-new"><div class="tool-chip-icon" style="background:var(--color-primary-highlight);color:var(--color-primary)">SJ</div><div><div class="tool-chip-name">stryker-js</div><div class="tool-chip-desc">Mutation testing — validates tests catch bugs.</div><div class="tool-chip-stars">2.9k stars · Impact: 55</div></div></div>
+      </div>
+    </div>
+    <div class="layer-block open" id="layer-1">
+      <div class="layer-header" onclick="toggleLayer('layer-1')"><div class="layer-num" style="background:color-mix(in oklch,var(--color-blue) 15%,transparent);color:var(--color-blue)">1</div><div><div class="layer-name">API Contract Gate</div><div class="layer-desc">Fast · no browser · catches shape bugs</div></div><div class="layer-meta"><span class="layer-count">3 tools</span><svg class="layer-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div></div>
+      <div class="layer-tools">
+        <div class="tool-chip chip-new" style="border-left-color:var(--color-blue)"><div class="tool-chip-icon" style="background:var(--color-blue-highlight);color:var(--color-blue)">HU</div><div><div class="tool-chip-name">hurl</div><div class="tool-chip-desc">HTTP contract tests in plain text. 18.9k stars.</div><div class="tool-chip-stars">Impact: 125 · Low effort</div></div></div>
+        <div class="tool-chip chip-new" style="border-left-color:var(--color-blue)"><div class="tool-chip-icon" style="background:var(--color-blue-highlight);color:var(--color-blue)">OC</div><div><div class="tool-chip-name">openapi-cop</div><div class="tool-chip-desc">Proxy validates against OpenAPI schema.</div><div class="tool-chip-stars">Impact: 65</div></div></div>
+        <div class="tool-chip chip-new" style="border-left-color:var(--color-blue)"><div class="tool-chip-icon" style="background:var(--color-blue-highlight);color:var(--color-blue)">RC</div><div><div class="tool-chip-name">redocly-cli</div><div class="tool-chip-desc">Lint OpenAPI spec correctness.</div><div class="tool-chip-stars">1.5k stars</div></div></div>
+      </div>
+    </div>
+    <div class="layer-block" id="layer-2">
+      <div class="layer-header" onclick="toggleLayer('layer-2')"><div class="layer-num" style="background:color-mix(in oklch,var(--color-success) 15%,transparent);color:var(--color-success)">2</div><div><div class="layer-name">Unit + Integration</div><div class="layer-desc">Fast · no browser · vitest + supertest + contracts</div></div><div class="layer-meta"><span class="layer-count">3 tools</span><svg class="layer-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div></div>
+      <div class="layer-tools">
+        <div class="tool-chip chip-have"><div class="tool-chip-icon" style="background:var(--color-success-highlight);color:var(--color-success)">VI</div><div><div class="tool-chip-name">vitest</div><div class="tool-chip-desc">Unit tests (auth.test.ts).</div><div class="tool-chip-stars">Already have</div></div></div>
+        <div class="tool-chip chip-have"><div class="tool-chip-icon" style="background:var(--color-success-highlight);color:var(--color-success)">ST</div><div><div class="tool-chip-name">supertest</div><div class="tool-chip-desc">HTTP integration tests.</div><div class="tool-chip-stars">In devDeps</div></div></div>
+        <div class="tool-chip chip-new"><div class="tool-chip-icon" style="background:var(--color-success-highlight);color:var(--color-success)">PJ</div><div><div class="tool-chip-name">pact-js</div><div class="tool-chip-desc">Consumer-driven contract tests.</div><div class="tool-chip-stars">Impact: 45</div></div></div>
+      </div>
+    </div>
+    <div class="layer-block" id="layer-3">
+      <div class="layer-header" onclick="toggleLayer('layer-3')"><div class="layer-num" style="background:var(--color-primary-highlight);color:var(--color-primary)">3</div><div><div class="layer-name">E2E Browser</div><div class="layer-desc">6 spec files · a11y + visual regression</div></div><div class="layer-meta"><span class="layer-count">5 tools</span><svg class="layer-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div></div>
+      <div class="layer-tools">
+        <div class="tool-chip chip-have"><div class="tool-chip-icon" style="background:var(--color-primary-highlight);color:var(--color-primary)">PW</div><div><div class="tool-chip-name">Playwright</div><div class="tool-chip-desc">Core E2E · 6 spec files.</div><div class="tool-chip-stars">88.6k stars</div></div></div>
+        <div class="tool-chip chip-new"><div class="tool-chip-icon" style="background:var(--color-primary-highlight);color:var(--color-primary)">AX</div><div><div class="tool-chip-name">@axe-core/playwright</div><div class="tool-chip-desc">A11y per page.</div><div class="tool-chip-stars">Impact: 45</div></div></div>
+        <div class="tool-chip chip-new"><div class="tool-chip-icon" style="background:var(--color-primary-highlight);color:var(--color-primary)">GP</div><div><div class="tool-chip-name">guidepup</div><div class="tool-chip-desc">Screen reader testing.</div><div class="tool-chip-stars">Impact: 30</div></div></div>
+        <div class="tool-chip chip-have"><div class="tool-chip-icon" style="background:var(--color-primary-highlight);color:var(--color-primary)">VS</div><div><div class="tool-chip-name">toHaveScreenshot()</div><div class="tool-chip-desc">Visual regression built-in.</div><div class="tool-chip-stars">Built-in</div></div></div>
+        <div class="tool-chip chip-new"><div class="tool-chip-icon" style="background:color-mix(in oklch,var(--color-gold) 15%,transparent);color:var(--color-gold)">HA</div><div><div class="tool-chip-name">happo</div><div class="tool-chip-desc">Visual + a11y combined.</div><div class="tool-chip-stars">Impact: 40</div></div></div>
+      </div>
+    </div>
+    <div class="layer-block" id="layer-4">
+      <div class="layer-header" onclick="toggleLayer('layer-4')"><div class="layer-num" style="background:color-mix(in oklch,var(--color-purple) 15%,transparent);color:var(--color-purple)">4</div><div><div class="layer-name">Cross-Service</div><div class="layer-desc">Orchestrator · MCP · WebSocket</div></div><div class="layer-meta"><span class="layer-count">3 tools</span><svg class="layer-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div></div>
+      <div class="layer-tools">
+        <div class="tool-chip chip-new" style="border-left-color:var(--color-purple)"><div class="tool-chip-icon" style="background:var(--color-purple-highlight);color:var(--color-purple)">KA</div><div><div class="tool-chip-name">karate</div><div class="tool-chip-desc">REST + WS + gRPC in one DSL.</div><div class="tool-chip-stars">Impact: 125</div></div></div>
+        <div class="tool-chip chip-new" style="border-left-color:var(--color-purple)"><div class="tool-chip-icon" style="background:var(--color-purple-highlight);color:var(--color-purple)">MB</div><div><div class="tool-chip-name">mountebank</div><div class="tool-chip-desc">Mock WS/HTTP/TCP.</div><div class="tool-chip-stars">Impact: 45</div></div></div>
+        <div class="tool-chip chip-new" style="border-left-color:var(--color-purple)"><div class="tool-chip-icon" style="background:var(--color-purple-highlight);color:var(--color-purple)">PF</div><div><div class="tool-chip-name">promptfoo</div><div class="tool-chip-desc">LLM response quality eval.</div><div class="tool-chip-stars">Impact: 20</div></div></div>
+      </div>
+    </div>
+    <div class="layer-block" id="layer-5">
+      <div class="layer-header" onclick="toggleLayer('layer-5')"><div class="layer-num" style="background:color-mix(in oklch,var(--color-warning) 15%,transparent);color:var(--color-warning)">5</div><div><div class="layer-name">Monitoring + Flaky Detection</div><div class="layer-desc">Trace replay · flaky detection</div></div><div class="layer-meta"><span class="layer-count">3 tools</span><svg class="layer-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div></div>
+      <div class="layer-tools">
+        <div class="tool-chip chip-have"><div class="tool-chip-icon" style="background:var(--color-warning-highlight);color:var(--color-warning)">TR</div><div><div class="tool-chip-name">Playwright Trace</div><div class="tool-chip-desc">DOM snapshots on failure.</div><div class="tool-chip-stars">Already have</div></div></div>
+        <div class="tool-chip chip-new" style="border-left-color:var(--color-warning)"><div class="tool-chip-icon" style="background:var(--color-warning-highlight);color:var(--color-warning)">MC</div><div><div class="tool-chip-name">Monocart Reporter</div><div class="tool-chip-desc">Flaky trend viewer.</div><div class="tool-chip-stars">Impact: 25</div></div></div>
+        <div class="tool-chip chip-new" style="border-left-color:var(--color-warning)"><div class="tool-chip-icon" style="background:var(--color-warning-highlight);color:var(--color-warning)">BP</div><div><div class="tool-chip-name">BuildPulse</div><div class="tool-chip-desc">Flaky detection in CI.</div><div class="tool-chip-stars">SaaS</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Matrix -->
+<div id="tab-matrix" class="tab-content">
+  <h1 style="font-size:var(--text-xl);font-weight:800;margin-bottom:0.25rem">Impact Matrix</h1>
+  <p style="color:var(--color-text-muted);margin-bottom:1rem">All tools × variables. Color = magnitude.</p>
+  <div class="matrix-wrap"><table class="matrix-table" id="matrix-table"></table></div>
+</div>
+
+<!-- Priority -->
+<div id="tab-priority" class="tab-content">
+  <h1 style="font-size:var(--text-xl);font-weight:800;margin-bottom:0.25rem">Implementation Priority</h1>
+  <p style="color:var(--color-text-muted);margin-bottom:1rem">Ordered by effort-to-impact ratio.</p>
+  <div class="priority-table-wrap"><table class="priority-table" id="priority-table"></table></div>
+</div>
+
+<!-- Build Now -->
+<div id="tab-build" class="tab-content">
+  <h1 style="font-size:var(--text-xl);font-weight:800;margin-bottom:0.25rem">Build Now</h1>
+  <p style="color:var(--color-text-muted);margin-bottom:1rem">Start with low-effort, high-impact.</p>
+  <div class="build-steps" id="build-steps"></div>
+</div>
+</div></div></div></div>
+<script>
+function showTab(n,btn){document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));document.getElementById('tab-'+n).classList.add('active');document.querySelectorAll('.sidebar-link').forEach(l=>l.classList.remove('active'));if(btn)btn.classList.add('active')}
+function toggleLayer(id){document.getElementById(id).classList.toggle('open')}
+function scrollLayer(n){const e=document.getElementById('layer-'+n);if(e)e.scrollIntoView({behavior:'smooth',block:'center'})}
+// Matrix data
+const mx=[{t:'hurl',s:'18.9k',r:[20,0,55,5,5,0,0,0,40,0,0,0],sm:125},{t:'Playwright',s:'88.6k',r:[15,25,0,25,15,0,10,0,0,0,5,0],sm:95},{t:'karate',s:'8.9k',r:[15,0,25,10,10,5,25,0,30,0,0,5],sm:125},{t:'stryker-js',s:'2.9k',r:[0,0,0,0,0,0,0,0,0,55,0,0],sm:55},{t:'openapi-cop',s:'370',r:[0,0,30,0,0,0,0,0,35,0,0,0],sm:65},{t:'@axe-core/pw',s:'built-in',r:[0,0,0,0,0,0,0,45,0,0,0,0],sm:45},{t:'happo',s:'511',r:[0,0,0,0,0,0,0,15,0,0,25,0],sm:40},{t:'promptfoo',s:'21.2k',r:[0,0,5,5,0,0,10,0,0,0,0,0],sm:20},{t:'guidepup-pw',s:'76',r:[0,0,0,0,0,0,0,30,0,0,0,0],sm:30},{t:'mountebank',s:'2.1k',r:[10,0,5,5,10,0,15,0,0,0,0,0],sm:45},{t:'pact-js',s:'pact*',r:[0,0,15,5,0,0,0,0,25,0,0,0],sm:45},{t:'Monocart Rpt',s:'303',r:[5,0,0,20,0,0,0,0,0,0,0,0],sm:25}];
+const cols=['A Flaky','B Select','C API','D Debug','E Seed','F Speed','G WS','H A11y','I Contract','J Mutation','K Visual','L Perf'];
+function h(v){if(v===0)return'heat-0';if(v<15)return'heat-1';if(v<30)return'heat-2';if(v<50)return'heat-3';return'heat-4'}
+// Render matrix
+const mt=document.getElementById('matrix-table');
+mt.innerHTML='<tr><th>Tool</th><th>Stars</th>'+cols.map(c=>'<th title="'+c+'">'+c.split(' ')[0]+'</th>').join('')+'<th>Sum</th></tr>';
+mx.forEach(r=>{const cells=r.r.map(v=>v===0?'<td><span class="heat heat-0">—</span></td>':'<td><span class="heat '+h(v)+'">'+v+'</span></td>').join('');mt.innerHTML+='<tr><td class="tool-name-cell">'+r.t+'</td><td>'+r.s+'</td>'+cells+'<td class="score-sum">'+r.sm+'</td></tr>'});
+// Render priority
+const pr=[{p:1,t:'hurl',w:'API contracts broken before browser tests run',e:'low',i:125},{p:2,t:'@axe-core/playwright',w:'Accessibility violations on every page',e:'low',i:45},{p:3,t:'openapi-cop',w:'Response shape mismatches during dev',e:'medium',i:65},{p:4,t:'stryker-js',w:'Gaps in test coverage (tests pass but don\'t verify)',e:'high',i:55},{p:5,t:'karate',w:'Orchestrator WS protocol + REST + MCP',e:'high',i:125},{p:6,t:'promptfoo',w:'MCP AI output quality degradation',e:'low',i:20},{p:7,t:'happo',w:'Visual regressions on dashboard, registry, IDE',e:'medium',i:40}];
+const pt=document.getElementById('priority-table');
+pt.innerHTML='<tr><th>#</th><th>Tool</th><th>What It Detects</th><th>Effort</th><th>Impact</th></tr>';
+pr.forEach(r=>{const ec=r.e==='low'?'effort-low':r.e==='medium'?'effort-med':'effort-high';pt.innerHTML+='<tr><td><span class="priority-badge">'+r.p+'</span></td><td style="font-weight:700">'+r.t+'</td><td style="color:var(--color-text-muted)">'+r.w+'</td><td><span class="effort-badge '+ec+'">'+r.e.charAt(0).toUpperCase()+r.e.slice(1)+'</span></td><td><div class="impact-bar"><div class="impact-fill" style="width:'+Math.round(r.i/125*80)+'px;max-width:80px"></div><span class="impact-num">'+r.i+'</span></div></td></tr>'});
+// Render build steps
+const bs=[{n:1,t:'Create tests/contracts/ with hurl API contract files',d:'Plain-text .hurl files for every endpoint: auth, repos, pipeline, registry. Run via: hurl --test tests/contracts/*.hurl',tg:['hurl','Priority 1','Low Effort','Impact: 125']},{n:2,t:'Add @axe-core/playwright accessibility checks',d:'Install axe-playwright, add injectAxe() + checkA11y() to each of the 6 spec files.',tg:['@axe-core/playwright','Priority 2','Low Effort','Impact: 45']},{n:3,t:'Enable toHaveScreenshot() visual snapshots',d:'Add visual snapshots on key pages: dashboard, registry, login. First run generates baselines.',tg:['Playwright built-in','Zero Install','Visual Regression']},{n:4,t:'Complete the 6 spec files with fixed selectors',d:'auth.spec.ts, repo.spec.ts, pipeline.spec.ts, registry.spec.ts, ssh-keys.spec.ts, navigation.spec.ts',tg:['Playwright','6 specs','getByRole','getByLabel']}];
+const bc=document.getElementById('build-steps');
+bs.forEach(s=>{bc.innerHTML+='<div class="build-step"><div class="step-num">'+s.n+'</div><div><div class="step-title">'+s.t+'</div><div class="step-detail">'+s.d+'</div><div style="display:flex;flex-wrap:wrap;gap:0.25rem;margin-top:0.375rem">'+s.tg.map(t=>'<span class="step-tag">'+t+'</span>').join('')+'</div></div></div>'});
+</script>
+</body>
+</html>
