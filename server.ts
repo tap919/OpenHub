@@ -17,6 +17,8 @@ import { fireWebhook } from './src/services/webhooks.js';
 import { MCPClient } from './orchestrator/mcp-client.js';
 import { UnifiedPipeline } from './orchestrator/pipeline/unifiedPipeline.js';
 import { WSServer } from './orchestrator/ws-server.js';
+import git from 'isomorphic-git';
+import http from 'isomorphic-git/http/node';
 
 interface AuthUser {
   sub: string;
@@ -342,6 +344,117 @@ async function startServer() {
     fs.mkdirSync(path.dirname(fullPath), { recursive: true });
     fs.writeFileSync(fullPath, content, 'utf-8');
     res.json({ success: true, path: filePath });
+  });
+
+  // ===================== GIT ROUTES (isomorphic-git) =====================
+
+  app.get('/api/repos/:owner/:repoName/commits', auth.middleware(), async (req, res) => {
+    try {
+      const { owner, repoName } = req.params;
+      const repoPath = path.join(REPOS_ROOT, owner, repoName);
+      if (!fs.existsSync(repoPath)) return res.status(404).json({ error: 'Repository not found' });
+
+      const logs = await git.log({ fs, dir: repoPath, depth: 50 });
+      const commits = logs.map((c: any) => ({
+        sha: c.oid,
+        message: c.commit.message,
+        author: c.commit.author.name,
+        email: c.commit.author.email,
+        date: c.commit.author.timestamp,
+        verified: false,
+      }));
+      res.json(commits);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/repos/:owner/:repoName/branches', auth.middleware(), async (req, res) => {
+    try {
+      const { owner, repoName } = req.params;
+      const repoPath = path.join(REPOS_ROOT, owner, repoName);
+      if (!fs.existsSync(repoPath)) return res.status(404).json({ error: 'Repository not found' });
+
+      const branches = await git.listBranches({ fs, dir: repoPath });
+      const current = await git.currentBranch({ fs, dir: repoPath, fullname: false });
+      res.json({ branches, current });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/repos/:owner/:repoName/commits/:sha', auth.middleware(), async (req, res) => {
+    try {
+      const { owner, repoName, sha } = req.params;
+      const repoPath = path.join(REPOS_ROOT, owner, repoName);
+      if (!fs.existsSync(repoPath)) return res.status(404).json({ error: 'Repository not found' });
+
+      const commit = await git.readCommit({ fs, dir: repoPath, oid: sha });
+      res.json({
+        sha: commit.oid,
+        message: commit.commit.message,
+        author: commit.commit.author.name,
+        email: commit.commit.author.email,
+        date: commit.commit.author.timestamp,
+        tree: commit.commit.tree,
+        parents: commit.commit.parent,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/repos/:owner/:repoName/diff', auth.middleware(), async (req, res) => {
+    try {
+      const { owner, repoName } = req.params;
+      const { sha } = req.query;
+      const repoPath = path.join(REPOS_ROOT, owner, repoName);
+      if (!fs.existsSync(repoPath)) return res.status(404).json({ error: 'Repository not found' });
+
+      const commit = await git.readCommit({ fs, dir: repoPath, oid: sha as string });
+      const tree = await git.readTree({ fs, dir: repoPath, oid: commit.commit.tree });
+
+      const changedFiles = tree.tree
+        .filter((e: any) => e.type === 'blob')
+        .map((e: any) => ({
+          path: e.path,
+          mode: e.mode,
+          oid: e.oid,
+          type: 'modified',
+        }));
+
+      res.json({ sha, files: changedFiles.slice(0, 20) });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/repos/:owner/:repoName/commits', auth.middleware(), async (req, res) => {
+    try {
+      const { owner, repoName } = req.params;
+      const { filePath, content, message } = req.body;
+      const user = req.user as unknown as AuthUser;
+      const repoPath = path.join(REPOS_ROOT, owner, repoName);
+      if (!fs.existsSync(repoPath)) return res.status(404).json({ error: 'Repository not found' });
+
+      const fullPath = path.join(repoPath, filePath);
+      if (!fullPath.startsWith(repoPath)) return res.status(403).json({ error: 'Path traversal denied' });
+
+      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+      fs.writeFileSync(fullPath, content, 'utf-8');
+
+      await git.add({ fs, dir: repoPath, filepath: filePath });
+      const oid = await git.commit({
+        fs,
+        dir: repoPath,
+        message,
+        author: { name: user.username || 'developer', email: user.email || 'dev@openhub.local' },
+      });
+
+      res.json({ success: true, sha: oid });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // ===================== FILE WATCH / SCAN =====================
