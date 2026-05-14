@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -147,8 +148,37 @@ async function startServer() {
     next();
   });
 
+  // ===================== RATE LIMITING =====================
+
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: { error: 'Too many attempts, please try again later' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    message: { error: 'Too many login attempts, please try again later' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const registerLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 5,
+    message: { error: 'Too many accounts created, please try again later' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
   // ===================== AUTH ROUTES =====================
 
+  app.use('/api/auth', authLimiter);
+  app.post('/api/auth/login', loginLimiter);
+  app.post('/api/auth/register', registerLimiter);
   app.use('/api/auth', auth.router({
     onRegister: async (data) => {
       const hashedPassword = await auth.passwordService.hash(data.password);
