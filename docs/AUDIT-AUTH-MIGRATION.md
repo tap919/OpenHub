@@ -1,5 +1,7 @@
 # Auth Migration Audit Report
 
+> **⚠️ HISTORICAL DOCUMENT** - This audit was performed on 2026-05-13 during initial auth migration. Many items have since been resolved. See server.ts for current state.
+
 ## Date: 2026-05-13
 ## Auditor: Claude Code
 ## Scope: awesome-node-auth Integration

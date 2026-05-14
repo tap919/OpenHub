@@ -276,3 +276,199 @@ Return ONLY valid JSON:
         return {"status": "success", "test_code": f"// Tests for provided code\n// (LLM unavailable)\nimport {{ describe, it, expect }} from 'vitest';\n\ndescribe('{language} code', () => {{\n  it('should work', () => {{\n    expect(true).toBe(true);\n  }});\n}});", "test_framework": "vitest", "coverage_targets": []}
     except Exception:
         return {"status": "success", "test_code": "// Test generation placeholder", "test_framework": "vitest", "coverage_targets": []}
+
+
+# ===================== EXECUTION TOOLS (Shell-out) =====================
+
+
+@mcp_server.tool(name="check_node_env", description="Check if Node.js is available in the environment")
+async def check_node_env_tool(ctx) -> Dict[str, Any]:
+    await ctx.info("[exec] Checking Node.js environment...")
+    try:
+        result = subprocess.run(
+            ["node", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0:
+            version = result.stdout.strip()
+            return {"status": "success", "available": True, "version": version}
+        return {"status": "success", "available": False, "error": result.stderr}
+    except FileNotFoundError:
+        return {"status": "success", "available": False, "error": "node not found in PATH"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@mcp_server.tool(name="detect_package_manager", description="Detect the package manager used in a project (npm, yarn, pnpm, bun)")
+async def detect_package_manager_tool(ctx, path: str = ".") -> Dict[str, Any]:
+    await ctx.info(f"[exec] Detecting package manager in {path}...")
+    search_path = Path(path).resolve()
+
+    # Check for lock files in order of preference
+    managers = [
+        ("pnpm", "pnpm-lock.yaml"),
+        ("yarn", "yarn.lock"),
+        ("bun", "bun.lockb"),
+        ("npm", "package-lock.json"),
+    ]
+
+    for manager, lockfile in managers:
+        if (search_path / lockfile).exists():
+            return {"status": "success", "manager": manager, "lockfile": lockfile}
+
+    # Check for package.json to default to npm
+    if (search_path / "package.json").exists():
+        return {"status": "success", "manager": "npm", "lockfile": None}
+
+    return {"status": "success", "manager": None, "error": "No package.json found"}
+
+
+@mcp_server.tool(name="run_install", description="Install dependencies using the detected package manager")
+async def run_install_tool(ctx, manager: str = "npm", path: str = ".") -> Dict[str, Any]:
+    await ctx.info(f"[exec] Running {manager} install in {path}...")
+    work_dir = Path(path).resolve()
+
+    try:
+        result = subprocess.run(
+            [manager, "install"],
+            cwd=work_dir,
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 min timeout
+        )
+        return {
+            "status": "success" if result.returncode == 0 else "error",
+            "returncode": result.returncode,
+            "stdout": result.stdout[:2000] if result.stdout else "",
+            "stderr": result.stderr[:2000] if result.stderr else "",
+        }
+    except subprocess.TimeoutExpired:
+        return {"status": "error", "message": "Installation timed out after 5 minutes"}
+    except FileNotFoundError:
+        return {"status": "error", "message": f"{manager} not found in PATH"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@mcp_server.tool(name="run_biome", description="Run Biome linter and formatter")
+async def run_biome_tool(ctx, path: str = ".") -> Dict[str, Any]:
+    await ctx.info(f"[exec] Running Biome in {path}...")
+    work_dir = Path(path).resolve()
+
+    # Check if biome is installed
+    biome_bin = work_dir / "node_modules" / ".bin" / "biome"
+    if not biome_bin.exists():
+        return {"status": "error", "message": "Biome not installed. Run 'npm install @biomejs/biome' first."}
+
+    try:
+        # Run biome check (linting)
+        result = subprocess.run(
+            [str(biome_bin), "check", "--write", "."],
+            cwd=work_dir,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        return {
+            "status": "success" if result.returncode == 0 else "warning",
+            "returncode": result.returncode,
+            "output": result.stdout + result.stderr,
+        }
+    except subprocess.TimeoutExpired:
+        return {"status": "error", "message": "Biome timed out"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@mcp_server.tool(name="run_tsc", description="Run TypeScript compiler (tsc) for type checking")
+async def run_tsc_tool(ctx, path: str = ".") -> Dict[str, Any]:
+    await ctx.info(f"[exec] Running TypeScript in {path}...")
+    work_dir = Path(path).resolve()
+
+    # Check for tsc
+    tsc_path = work_dir / "node_modules" / ".bin" / "tsc"
+    if not tsc_path.exists():
+        # Try npx
+        result = subprocess.run(
+            ["npx", "tsc", "--noEmit"],
+            cwd=work_dir,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    else:
+        result = subprocess.run(
+            [str(tsc_path), "--noEmit"],
+            cwd=work_dir,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+    return {
+        "status": "success" if result.returncode == 0 else "error",
+        "returncode": result.returncode,
+        "output": result.stdout + result.stderr,
+    }
+
+
+@mcp_server.tool(name="run_build", description="Run the project's build command")
+async def run_build_tool(ctx, path: str = ".") -> Dict[str, Any]:
+    await ctx.info(f"[exec] Running build in {path}...")
+    work_dir = Path(path).resolve()
+
+    # Read package.json to find build script
+    package_json = work_dir / "package.json"
+    if package_json.exists():
+        import json
+
+        with open(package_json) as f:
+            pkg = json.load(f)
+            build_script = pkg.get("scripts", {}).get("build")
+            if build_script:
+                # Extract the actual command (e.g., "vite build" -> ["vite", "build"])
+                parts = build_script.split()
+                if parts:
+                    cmd = parts[0]
+                    args = parts[1:] if len(parts) > 1 else []
+
+                    try:
+                        result = subprocess.run(
+                            [cmd] + args,
+                            cwd=work_dir,
+                            capture_output=True,
+                            text=True,
+                            timeout=180,  # 3 min
+                        )
+                        return {
+                            "status": "success" if result.returncode == 0 else "error",
+                            "returncode": result.returncode,
+                            "stdout": result.stdout[:2000],
+                            "stderr": result.stderr[:2000],
+                        }
+            return {"status": "error", "message": "No build script found in package.json"}
+
+    return {"status": "error", "message": "No package.json found"}
+
+
+@mcp_server.tool(name="ingest_learning", description="Store learning from pipeline execution for future improvements")
+async def ingest_learning_tool(ctx, data: Dict[str, Any]) -> Dict[str, Any]:
+    await ctx.info("[learn] Storing pipeline learning...")
+
+    # Store in a local learning file
+    learning_dir = _WORKSPACE_ROOT / ".openhub" / "learnings"
+    learning_dir.mkdir(parents=True, exist_ok=True)
+
+    import time
+
+    filename = f"learning_{int(time.time())}.json"
+    filepath = learning_dir / filename
+
+    try:
+        with open(filepath, "w") as f:
+            json.dump(data, f, indent=2)
+        return {"status": "success", "saved_to": str(filepath)}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}

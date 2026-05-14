@@ -14,6 +14,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { AuthConfigurator } from 'awesome-node-auth';
 import { SQLiteUserStore } from './src/auth/ana-user-store.js';
 import { fireWebhook } from './src/services/webhooks.js';
+import { MCPClient } from './orchestrator/mcp-client.js';
+import { UnifiedPipeline } from './orchestrator/pipeline/unifiedPipeline.js';
+import { WSServer } from './orchestrator/ws-server.js';
 
 interface AuthUser {
   sub: string;
@@ -290,7 +293,7 @@ async function startServer() {
     res.json(repo);
   });
 
-  app.get('/api/repos/:owner/:repoName/contents', (req, res) => {
+  app.get('/api/repos/:owner/:repoName/contents', auth.middleware(), (req, res) => {
     const { owner, repoName } = req.params;
     const repoPath = path.join(REPOS_ROOT, owner, repoName);
 
@@ -384,9 +387,38 @@ async function startServer() {
   const STAGE_DELAYS = FAST_PIPELINE ? [0.5, 1.0, 1.5, 2.0] : [8, 20, 30, 35];
 
   app.post('/api/pipeline/run', auth.middleware(), async (req, res) => {
-    const { repoId, commitMessage, workflow } = req.body;
+    const { repoId, commitMessage, workflow, mode } = req.body;
     const runId = `run-${Math.random().toString(36).substring(2, 11)}`;
+    const user = req.user as unknown as AuthUser;
 
+    // Mode 'ai' uses the real UnifiedPipeline
+    if (mode === 'ai' && orchestratorWSS) {
+      try {
+        const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+        const mcpClient = new MCPClient(pythonPath, path.resolve(__dirname));
+        await mcpClient.start();
+
+        const pipeline = new UnifiedPipeline(mcpClient, orchestratorWSS);
+
+        orchestratorWSS.broadcast({
+          type: 'PIPELINE_EVENT',
+          phase: 'init',
+          status: 'started',
+          data: { runId, repoId, commitMessage, mode: 'ai' },
+        });
+
+        pipeline.run(`Repository: ${repoId}, Message: ${commitMessage || 'AI Pipeline'}`);
+
+        res.json({ runId, mode: 'ai', status: 'started' });
+        return;
+      } catch (err: any) {
+        console.error('[Pipeline] AI mode failed:', err.message);
+        res.status(500).json({ error: 'AI pipeline failed to start', details: err.message });
+        return;
+      }
+    }
+
+    // Default: fast fake timer for E2E tests
     pipelineRuns[runId] = {
       id: runId,
       repoId,
@@ -394,7 +426,7 @@ async function startServer() {
       status: 'running',
       startTime: Date.now(),
       commitMessage: commitMessage || 'Local push',
-      author: req.user as unknown as AuthUser,
+      author: user,
       createdAt: new Date().toISOString(),
       stages: [
         { id: 's1', name: 'Checkout', status: 'success', duration: '0.5s' },
@@ -427,7 +459,7 @@ async function startServer() {
       delete pipelineRuns[oldest];
     }
 
-    res.json({ runId });
+    res.json({ runId, mode: 'fast' });
   });
 
   app.get('/api/pipeline/status/:runId', auth.middleware(), (req, res) => {
@@ -647,7 +679,14 @@ async function startServer() {
     });
   });
 
-  // ===================== VITE / STATIC =====================
+  // ===================== GLOBAL ERROR HANDLER =====================
+
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('[Server] Unhandled error:', err.message);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+// ===================== VITE / STATIC =====================
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
