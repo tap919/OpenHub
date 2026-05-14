@@ -99,6 +99,7 @@ export function initializeDatabase() {
 
     CREATE TABLE IF NOT EXISTS registry_items (
       id TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL DEFAULT '',
       name TEXT NOT NULL,
       type TEXT NOT NULL DEFAULT 'cli',
       description TEXT DEFAULT '',
@@ -107,7 +108,8 @@ export function initializeDatabase() {
       version TEXT DEFAULT '0.1.0',
       config TEXT,
       last_run TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS mcp_tool_config (

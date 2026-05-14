@@ -103,6 +103,17 @@ async function launchOrchestrator() {
 async function startServer() {
   initializeDatabase();
 
+  // Migration: add owner_id to registry_items if missing
+  try {
+    const db = getDb();
+    const columns = db.prepare("PRAGMA table_info(registry_items)").all();
+    const hasOwnerId = columns.some((c: any) => c.name === 'owner_id');
+    if (!hasOwnerId) {
+      db.exec("ALTER TABLE registry_items ADD COLUMN owner_id TEXT NOT NULL DEFAULT ''");
+      console.log('[DB] Migration: added owner_id to registry_items');
+    }
+  } catch { /* table may not exist yet */ }
+
   const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'openhub-dev-access-token-secret-min-32-chars';
   const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'openhub-dev-refresh-token-secret-min-32-chars';
 
@@ -248,7 +259,7 @@ async function startServer() {
     res.json(paginate(repos, page, limit));
   });
 
-  app.post('/api/repos', auth.middleware(), (req, res) => {
+  app.post('/api/repos', auth.middleware(), async (req, res) => {
     const db = getDb();
 
     const { name, description, isPrivate } = req.body;
@@ -266,9 +277,9 @@ async function startServer() {
     fs.mkdirSync(fullPath, { recursive: true });
 
     try {
-      execSync('git init', { cwd: fullPath, stdio: 'ignore' });
-    } catch {
-      console.warn(`[Repo] git init failed for ${fullPath} — git may not be installed`);
+      await git.init({ fs, dir: fullPath, defaultBranch: 'main' });
+    } catch (err: any) {
+      console.warn(`[Repo] git.init failed for ${fullPath}: ${err.message}`);
     }
 
     db.prepare(`
@@ -412,18 +423,58 @@ async function startServer() {
       if (!fs.existsSync(repoPath)) return res.status(404).json({ error: 'Repository not found' });
 
       const commit = await git.readCommit({ fs, dir: repoPath, oid: sha as string });
-      const tree = await git.readTree({ fs, dir: repoPath, oid: commit.commit.tree });
+      const parentSha = commit.commit.parent?.[0];
 
-      const changedFiles = tree.tree
-        .filter((e: any) => e.type === 'blob')
-        .map((e: any) => ({
-          path: e.path,
-          mode: e.mode,
-          oid: e.oid,
-          type: 'modified',
-        }));
+      if (!parentSha) {
+        // First commit — all files are new
+        const tree = await git.readTree({ fs, dir: repoPath, oid: commit.commit.tree });
+        const files = tree.tree
+          .filter((e: any) => e.type === 'blob')
+          .map((e: any) => ({ path: e.path, type: 'added', oid: e.oid }));
+        return res.json({ sha, parent: null, files: files.slice(0, 50) });
+      }
 
-      res.json({ sha, files: changedFiles.slice(0, 20) });
+      const parentCommit = await git.readCommit({ fs, dir: repoPath, oid: parentSha });
+      const currentTree = await git.readTree({ fs, dir: repoPath, oid: commit.commit.tree });
+      const parentTree = await git.readTree({ fs, dir: repoPath, oid: parentCommit.commit.tree });
+
+      async function flattenTree(oid: string, prefix: string): Promise<Map<string, { oid: string; mode: string }>> {
+        const map = new Map<string, { oid: string; mode: string }>();
+        const tree = await git.readTree({ fs, dir: repoPath, oid });
+        for (const entry of tree.tree) {
+          const fullPath = prefix ? `${prefix}/${entry.path}` : entry.path;
+          if (entry.type === 'tree') {
+            const subMap = await flattenTree(entry.oid, fullPath);
+            for (const [k, v] of subMap) map.set(k, v);
+          } else {
+            map.set(fullPath, { oid: entry.oid, mode: entry.mode });
+          }
+        }
+        return map;
+      }
+
+      const currentMap = await flattenTree(commit.commit.tree, '');
+      const parentMap = await flattenTree(parentCommit.commit.tree, '');
+
+      const changedFiles: Array<{ path: string; type: string; oid: string }> = [];
+
+      // Files in current but not in parent → added
+      for (const [p, v] of currentMap) {
+        if (!parentMap.has(p)) {
+          changedFiles.push({ path: p, type: 'added', oid: v.oid });
+        } else if (parentMap.get(p)!.oid !== v.oid) {
+          changedFiles.push({ path: p, type: 'modified', oid: v.oid });
+        }
+      }
+
+      // Files in parent but not in current → deleted
+      for (const [p] of parentMap) {
+        if (!currentMap.has(p)) {
+          changedFiles.push({ path: p, type: 'deleted', oid: '' });
+        }
+      }
+
+      res.json({ sha, parent: parentSha, files: changedFiles.slice(0, 50) });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -648,7 +699,8 @@ async function startServer() {
   app.get('/api/registry', auth.middleware(), (req, res) => {
     const db = getDb();
     const { page, limit } = getPaginationParams(req);
-    const items = db.prepare('SELECT * FROM registry_items ORDER BY created_at DESC').all();
+    const userId = getUser(req).sub;
+    const items = db.prepare('SELECT * FROM registry_items WHERE owner_id = ? ORDER BY created_at DESC').all(userId);
     res.json(paginate(items, page, limit));
   });
 
@@ -656,12 +708,13 @@ async function startServer() {
     const db = getDb();
 
     const { name, type, description, author, version, config } = req.body;
+    const userId = getUser(req).sub;
 
     const id = uuidv4();
     db.prepare(`
-      INSERT INTO registry_items (id, name, type, description, status, author, version, config)
-      VALUES (?, ?, ?, ?, 'active', ?, ?, ?)
-    `).run(id, name, type || 'cli', description || '', author || getUser(req).username, version || '0.1.0', JSON.stringify(config || {}));
+      INSERT INTO registry_items (id, owner_id, name, type, description, status, author, version, config)
+      VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?)
+    `).run(id, userId, name, type || 'cli', description || '', author || getUser(req).username, version || '0.1.0', JSON.stringify(config || {}));
 
     const item = db.prepare('SELECT * FROM registry_items WHERE id = ?').get(id);
     res.json(item);
@@ -669,10 +722,14 @@ async function startServer() {
 
   app.patch('/api/registry/:id', auth.middleware(), (req, res) => {
     const db = getDb();
+    const userId = getUser(req).sub;
     const { status, config } = req.body;
 
-    if (status) db.prepare('UPDATE registry_items SET status = ? WHERE id = ?').run(status, req.params.id);
-    if (config) db.prepare('UPDATE registry_items SET config = ? WHERE id = ?').run(JSON.stringify(config), req.params.id);
+    const existing = db.prepare('SELECT * FROM registry_items WHERE id = ? AND owner_id = ?').get(req.params.id, userId);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+
+    if (status) db.prepare('UPDATE registry_items SET status = ? WHERE id = ? AND owner_id = ?').run(status, req.params.id, userId);
+    if (config) db.prepare('UPDATE registry_items SET config = ? WHERE id = ? AND owner_id = ?').run(JSON.stringify(config), req.params.id, userId);
 
     const item = db.prepare('SELECT * FROM registry_items WHERE id = ?').get(req.params.id);
     if (!item) return res.status(404).json({ error: 'Not found' });
