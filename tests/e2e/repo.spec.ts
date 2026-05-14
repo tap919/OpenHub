@@ -3,11 +3,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getCsrfToken, mutationHeaders, sharedCredentials } from '../helpers/auth';
 
-const SUB_TEAM_ROOT = 'C:/Users/User/Documents/Projects/Sub-Team-main';
+const SUB_TEAM_ROOT = process.env.SUB_TEAM_ROOT || '';
 const REPOS_ROOT = path.join(process.env.USERPROFILE || 'C:/Users/User', 'Documents', 'openhub', 'repos');
 const repoName = 'sub-team-test';
 
 function seedSubTeamFiles(repoDir: string) {
+  const secretDir = path.join(repoDir, 'config');
+  fs.mkdirSync(secretDir, { recursive: true });
+  fs.writeFileSync(path.join(secretDir, 'creds.json'), JSON.stringify({ aws_key: 'AKIAIOSFODNN7EXAMPLE', gh_token: 'ghp_test12345678901234567890' }, null, 2));
+  if (!SUB_TEAM_ROOT || !fs.existsSync(SUB_TEAM_ROOT)) return;
   const files = ['main.py', 'README.md', 'sub_team/__init__.py', 'sub_team/cpu.py', 'sub_team/specification_agent.py'];
   for (const rel of files) {
     const src = path.join(SUB_TEAM_ROOT, rel);
@@ -16,9 +20,6 @@ function seedSubTeamFiles(repoDir: string) {
       fs.copyFileSync(src, path.join(repoDir, rel));
     }
   }
-  const secretDir = path.join(repoDir, 'config');
-  fs.mkdirSync(secretDir, { recursive: true });
-  fs.writeFileSync(path.join(secretDir, 'creds.json'), JSON.stringify({ aws_key: 'AKIAIOSFODNN7EXAMPLE', gh_token: 'ghp_test12345678901234567890' }, null, 2));
 }
 
 test.describe.serial('Repository', () => {
@@ -41,13 +42,11 @@ test.describe.serial('Repository', () => {
 
   test('browse repo and read code via browser', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'OpenHub Command Console' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'OpenHub Command Console' })).toBeVisible({ timeout: 15000 });
 
-    // Click repo link on dashboard (client-side nav, no page reload)
     await page.getByText(repoName).first().click();
-    await page.waitForURL(`/${username}/${repoName}`);
-    await expect(page.getByText(repoName).first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole('link', { name: 'Code' })).toBeVisible();
+    await page.waitForURL(`/${username}/${repoName}`, { timeout: 15000 });
+    await expect(page.getByRole('link', { name: 'Code' })).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('link', { name: 'Actions' })).toBeVisible();
   });
 

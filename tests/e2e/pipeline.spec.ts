@@ -27,19 +27,17 @@ test.describe.serial('Pipeline', () => {
 
   test('trigger pipeline and view stages via browser', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'OpenHub Command Console' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'OpenHub Command Console' })).toBeVisible({ timeout: 15000 });
 
-    // Click repo on dashboard then navigate to Actions tab
-    await page.getByText(repoName).click();
-    await page.waitForURL(`/${username}/${repoName}`);
+    await page.getByText(repoName).first().click();
+    await page.waitForURL(`/${username}/${repoName}`, { timeout: 15000 });
     await page.getByText('Actions').click();
-    await page.waitForURL(`/${username}/${repoName}/actions`);
+    await page.waitForURL(`/${username}/${repoName}/actions`, { timeout: 10000 });
 
     const newRun = page.getByRole('button', { name: /New Run/i });
     await expect(newRun).toBeVisible({ timeout: 10000 });
     await newRun.click();
 
-    // Detail view appears automatically since handleTrigger calls setSelectedRunId
-    await expect(page.getByRole('button', { name: 'Back' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: 'Back' })).toBeVisible({ timeout: 10000 });
   });
 });

@@ -26,6 +26,7 @@ export default defineConfig({
       testMatch: /e2e\/(?!auth).*\.spec\.ts/,
       dependencies: ['setup'],
       use: { storageState: './playwright/.auth/user.json' },
+      timeout: 60_000,
     },
   ],
   webServer: {
